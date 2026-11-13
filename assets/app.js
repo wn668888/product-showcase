@@ -189,19 +189,23 @@
     // 结果所有商品都被过滤掉，页面只剩「没有匹配的素材」。这里彻底挡住它：
     // 换掉 name + autocomplete=new-password 让浏览器不再按字段匹配，页面加载
     // 前后再清几次；只有用户真的敲过键盘/点过输入框才不清，避免误删主动搜索。
-    let userEdited = false;
-    const markEdited = () => { userEdited = true; el.search.dataset.userTyped = '1'; };
-    el.search.addEventListener('keydown', markEdited);
-    el.search.addEventListener('pointerdown', markEdited);
+    let userTyped = false;
+    /* 只有真的敲了键盘才算店家主动搜索。以前点一下搜索框就打上标记，
+       之后浏览器再自动填充账号名就再也不敢清，结果「米兰」一直留在框里。 */
+    el.search.addEventListener('keydown', () => { userTyped = true; }, true);
+    el.search.addEventListener('input', (e) => {
+      if (e.isTrusted && e.inputType && /^insert/.test(e.inputType)) userTyped = true;
+    }, true);
     const clearAutofill = () => {
-      if (userEdited || !el.search.value) return;
+      if (userTyped || !el.search.value) return;
       el.search.value = '';
       state.query = '';
       try { render(); } catch { /* 索引还没加载完，稍后 loadManifest 会自己渲染 */ }
     };
     clearAutofill();
-    [0, 120, 500, 1200].forEach((ms) => setTimeout(clearAutofill, ms));
+    [0, 100, 300, 600, 1000, 1600, 2400, 3500, 5000].forEach((ms) => setTimeout(clearAutofill, ms));
     window.addEventListener('load', clearAutofill);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) clearAutofill(); });
 
     bindEvents();
     applyLayout(state.layout);
