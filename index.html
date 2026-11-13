@@ -11,7 +11,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23171614'/%3E%3Ccircle cx='16' cy='16' r='6' fill='none' stroke='%23fbfaf8' stroke-width='2'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="./assets/style.css?v=20261110-55">
+<link rel="stylesheet" href="./assets/style.css?v=20261113-1">
 <script>
 /* 相册更新后，浏览器有时会一直显示存下来的旧页面。
    这里悄悄问服务器一次「现在最新版是哪一版」，不一样就自动换成新页面，
@@ -79,7 +79,8 @@
         <circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="1.6"/>
         <path d="M15.5 15.5L21 21" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
       </svg>
-      <input id="search" type="search" name="gallery-search-field-7f3a" value="" placeholder="搜索商品名称或文件名" autocomplete="new-password" spellcheck="false" aria-label="搜索素材">
+      <input type="text" name="username" autocomplete="username" tabindex="-1" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0;pointer-events:none">
+      <input id="search" type="search" name="gallery-search-field-7f3a" value="" placeholder="搜索商品名称或文件名" autocomplete="off" data-lpignore="true" data-1p-ignore data-bwignore data-form-type="other" spellcheck="false" aria-label="搜索素材">
     </label>
     <div class="toolgroup">
       <span class="tool-label">版式</span>
@@ -792,15 +793,15 @@
   </div>
 </div>
 
-<script src="./assets/workbuddy-cloud-sdk.js?v=20261110-55"></script>
-<script src="./assets/cloud-config.js?v=20261110-55"></script>
-<script src="./assets/access.js?v=20261110-55" onerror="var g=document.getElementById('access-gate');if(g)g.hidden=true;"></script>
-<script src="./assets/chat.js?v=20261110-55"></script>
-<script src="./assets/cart.js?v=20261110-55"></script>
-<script src="./assets/app.js?v=20261110-55"></script>
-<script src="./assets/folder-import.js?v=20261110-55"></script>
-<script src="./assets/front-login.js?v=20261110-55"></script>
-<script src="./assets/shop-admin.js?v=20261110-55"></script>
+<script src="./assets/workbuddy-cloud-sdk.js?v=20261113-1"></script>
+<script src="./assets/cloud-config.js?v=20261113-1"></script>
+<script src="./assets/access.js?v=20261113-1" onerror="var g=document.getElementById('access-gate');if(g)g.hidden=true;"></script>
+<script src="./assets/chat.js?v=20261113-1"></script>
+<script src="./assets/cart.js?v=20261113-1"></script>
+<script src="./assets/app.js?v=20261113-1"></script>
+<script src="./assets/folder-import.js?v=20261113-1"></script>
+<script src="./assets/front-login.js?v=20261113-1"></script>
+<script src="./assets/shop-admin.js?v=20261113-1"></script>
 <a id="sg-admin-entry" href="?view=orders" title="店家后台：订单 / 分类 / 改价 / 相册 / 回收站" style="position:fixed;right:14px;bottom:calc(74px + env(safe-area-inset-bottom,0px));z-index:900;display:inline-flex;align-items:center;gap:6px;padding:9px 14px;border:1px solid #e8e3da;border-radius:999px;background:rgba(255,255,255,.96);color:#4b4741;font-size:12.5px;font-weight:600;text-decoration:none;box-shadow:0 3px 14px rgba(0,0,0,.14)">⚙ 店家后台</a>
 <script id="sg-admin-hint">/* 永久链接上的 ?view=orders 登录页：云端按来源域名校验，github.io 上店家登录
    一定报 Failed to fetch。这里给店家一个明确的入口，避免以为账号密码不对。
