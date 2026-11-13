@@ -104,5 +104,36 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeLb()});
 $('top').addEventListener('click',function(){window.scrollTo({top:0,behavior:'smooth'})});
 renderChips();render();
 </script>
+<script id="sg-full-banner">/* 线上 /simple/ 精简版顶部的引导条：告诉店家完整功能在哪里。
+   只注入到线上副本，本地离线原件保持纯净（断网双击照样干净可用）。
+   本文件会进公开仓库，不含任何账号或口令。 */
+(function () {
+  if (document.getElementById('sg-full-banner')) return;
+  var FULL = 'https://wn668888.github.io/product-showcase/';
+
+  var box = document.createElement('div');
+  box.id = 'sg-full-banner';
+  box.style.cssText =
+    'position:sticky;top:0;z-index:9999;box-sizing:border-box;width:100%;' +
+    'padding:10px 14px calc(10px + env(safe-area-inset-top,0px));' +
+    'background:#1f4d3a;color:#fff;text-align:center;' +
+    "font:14px/1.6 system-ui,-apple-system,'Microsoft YaHei',sans-serif;" +
+    'box-shadow:0 2px 12px rgba(0,0,0,.18)';
+  box.innerHTML =
+    '<div style="font-weight:700;font-size:15px">当前是「离线精简版」：只有封面图</div>' +
+    '<div style="opacity:.9;margin-top:2px">全部图片、加购清单、店家后台都在完整版里</div>' +
+    '<a href="' + FULL + '" style="display:inline-block;margin-top:8px;padding:9px 20px;' +
+    'border-radius:999px;background:#fff;color:#1f4d3a;font-weight:700;font-size:14px;' +
+    'text-decoration:none">进入完整版（可加购 · 看多图 · 店家后台）→</a>';
+
+  function mount() {
+    if (document.getElementById('sg-full-banner')) return;
+    (document.body || document.documentElement).insertBefore(box,
+      document.body ? document.body.firstChild : null);
+  }
+  if (document.body) mount();
+  else document.addEventListener('DOMContentLoaded', mount);
+})();
+</script>
 </body>
 </html>
