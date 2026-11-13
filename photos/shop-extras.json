@@ -1,0 +1,8 @@
+{
+  "vip": {
+    "plan": "全能 VIP",
+    "pricePerQuarter": 300,
+    "expiresAt": "2027-01-06",
+    "renewals": []
+  }
+}

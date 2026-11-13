@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>简白图库 · 商品相册</title>
+<meta name="description" content="商品相册，支持图片与视频、任意数量、按类别与格式浏览、搜索与多种版式。">
+<meta name="theme-color" content="#fbfaf8">
+<meta name="gallery-build" content="20261110-55">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23171614'/%3E%3Ccircle cx='16' cy='16' r='6' fill='none' stroke='%23fbfaf8' stroke-width='2'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="./assets/style.css?v=20261110-55">
+<script>
+/* 相册更新后，浏览器有时会一直显示存下来的旧页面。
+   这里悄悄问服务器一次「现在最新版是哪一版」，不一样就自动换成新页面，
+   店家和客户都不用手工装刷新、也不用换链接。 */
+(function () {
+  try {
+    var BUILD = '20261110-55';
+    var checking = false;
+    function check() {
+      if (checking || document.hidden) return;
+      checking = true;
+      fetch('./index.html?_probe=' + Date.now(), { cache: 'no-store' })
+        .then(function (r) { return r && r.ok ? r.text() : ''; })
+        .then(function (t) {
+          var m = /<meta\s+name="gallery-build"\s+content="([^"]+)"/i.exec(t || '');
+          if (m && m[1] && m[1] !== BUILD) {
+            var next = new URL(location.href);
+            next.searchParams.set('_wb', m[1]);
+            location.replace(next.toString());
+          }
+        })
+        .catch(function () { /* 没网或读不到就照常显示，不影响浏览 */ })
+        .then(function () { checking = false; });
+    }
+    check();
+    /* 店家刚上架完，客户 / 店家页面即使一直开着，也会在 30 秒内自动换到新版，
+       不用手动刷新、不用重发链接；切回前台立刻再查一次。 */
+    setInterval(check, 30000);
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) check(); });
+  } catch (e) { /* 老浏览器不支持就跳过 */ }
+})();
+</script>
+<script>
+/* 主页访问权限：店家后台页从第一帧就不显示客户访问门 */
+(function () {
+  try {
+    if (/[?&]view=orders(?:&|$)/.test(location.search)) {
+      document.documentElement.className += ' ac-orders';
+    }
+  } catch (e) {}
+})();
+</script>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wrap topbar-inner">
+    <a class="brand" href="./">SIMPLE<em>GALLERY</em></a>
+    <p class="tagline">图片 · 视频 · 任意数量</p>
+    <button id="shop-login-entry" class="shop-login-entry" type="button">🔐 店家登录</button>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <section class="hero">
+    <p class="eyebrow">Product lookbook</p>
+    <h1>商品图录</h1>
+    <p class="lede">共 <strong id="total">—</strong> 个商品（<span id="media-summary">图片 / 视频</span>）· 点开格子看这个商品的全部图片 · 看中的加进「🛒 选购清单」</p>
+  </section>
+
+  <div id="toolbar" class="toolbar">
+    <label class="search">
+      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+        <circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="1.6"/>
+        <path d="M15.5 15.5L21 21" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+      </svg>
+      <input id="search" type="search" name="gallery-search-field-7f3a" value="" placeholder="搜索商品名称或文件名" autocomplete="new-password" spellcheck="false" aria-label="搜索素材">
+    </label>
+    <div class="toolgroup">
+      <span class="tool-label">版式</span>
+      <div id="layouts" class="seg" role="group" aria-label="切换版式">
+        <button type="button" data-layout="dense" aria-pressed="true">8 列</button>
+        <button type="button" data-layout="grid" aria-pressed="false">网格</button>
+        <button type="button" data-layout="masonry" aria-pressed="false">瀑布流</button>
+        <button type="button" data-layout="large" aria-pressed="false">大图</button>
+      </div>
+    </div>
+    <button id="open-upload" class="upload-btn" type="button">＋ 上传商品</button>
+    <button id="open-orders" class="orders-entry" type="button" hidden>📋 客户订单</button>
+    <button id="customer-pay" class="pay-entry" type="button">💰 店家收款码</button>
+    <button id="cart-toggle" class="cart-toggle" type="button">🛒 选购清单 <span id="cart-count" class="cart-badge" hidden>0</span></button>
+    <span id="console-state" class="console-state" aria-live="polite">正在检测本机上传台…</span>
+  </div>
+
+  <!-- 全部分类：默认折叠，点开是两列分类列表（对齐又拍相册）；替代原来横向滚动的一排分类胶囊 -->
+  <div id="cat-wrap" class="cat-wrap">
+    <button id="cat-toggle" class="cat-toggle" type="button" aria-expanded="false" aria-controls="cat-panel">
+      <span id="cat-toggle-label">全部分类</span><span class="cat-caret" aria-hidden="true">▾</span>
+    </button>
+    <div id="cat-panel" class="cat-panel" hidden>
+      <div id="cat-panel-list" class="cat-panel-list"></div>
+    </div>
+  </div>
+
+  <nav id="filters" class="filters" aria-label="按类别筛选" hidden></nav>
+  <nav id="format-filters" class="filters formats" aria-label="按格式筛选" hidden></nav>
+
+  <section id="gallery" class="gallery layout-dense" aria-live="polite"></section>
+
+  <div id="pager" class="more" hidden>
+    <button id="page-prev" class="more-btn" type="button">上一页</button>
+    <span id="page-info" class="shown"></span>
+    <button id="page-next" class="more-btn" type="button">下一页</button>
+  </div>
+
+  <section id="empty" class="empty" hidden>
+    <h2>相册还是空的</h2>
+    <p id="empty-reason" class="empty-reason"></p>
+    <ol class="empty-steps">
+      <li>把任意数量的图片 / 视频放进 <code>photos/bags</code>、<code>photos/scarves</code>、<code>photos/watches</code></li>
+      <li>或运行 <code>npm run import:media &lt;文件夹&gt;</code> 批量导入，自动改名并生成中文标题</li>
+      <li>执行 <code>npm run build</code> 重建索引，刷新本页即可看到</li>
+    </ol>
+    <p class="empty-note">支持常见图片与视频格式，商品数量没有上限。</p>
+  </section>
+
+</main>
+
+<footer class="footer wrap">
+  <p>SIMPLE GALLERY · 静态相册 · 更新于 <span id="built-at">—</span> · <span id="formats-note"></span></p>
+<p style="margin:10px 0 0;font-size:12px;color:#837c73"><a href="?view=orders" style="color:inherit">⚙ 店家后台管理</a> · <a href="./simple/" style="color:inherit">简洁展示版</a></p>
+</footer>
+
+<div id="upload-panel" class="upload-panel" hidden>
+  <div class="upload-panel-card" role="dialog" aria-modal="true" aria-label="上传商品">
+    <button id="upload-panel-close" class="upload-panel-close" type="button" aria-label="关闭">×</button>
+    <h2>上传商品图片 / 视频</h2>
+    <p>本机上传台就绪时，点开任意一个框就能在里面「＋ 给这个框加图」「✎ 编辑资料」（编号、价格、尺寸、成色、描述、备注和分类，还能直接新建分类），每张小图上都有「×」可单独删除，右上也能「删除整个商品框」；首页格子只放图片，不显示按钮。删除会先确认，图片移到本机回收站、误删可找回。顶部「＋ 新建商品框」和最后一页的虚线格子用来新建独立商品。</p>
+    <a class="upload-panel-go" href="http://127.0.0.1:3210" target="_blank" rel="noopener">打开上传台 ↗</a>
+    <p class="upload-panel-hint">打不开？双击桌面上的 <code>Gallery-Upload</code> 图标启动上传台，再回来点上面的按钮。</p>
+  </div>
+</div>
+
+<div id="edit-panel" class="edit-panel" hidden>
+  <form id="edit-form" class="edit-card" role="dialog" aria-modal="true" aria-label="编辑商品资料">
+    <button id="edit-close" class="edit-close" type="button" aria-label="关闭">×</button>
+    <h2>编辑商品资料</h2>
+    <p class="edit-lede">填多少都行，留空的字段不会显示。点「保存并发布」后自动同步到线上相册。</p>
+    <div class="edit-grid">
+      <label>商品编号<input id="ed-code" type="text" placeholder="例如 00208" autocomplete="off"></label>
+      <label>商品名称<input id="ed-title" type="text" placeholder="例如 普拉达 hobo 中古腋下包" autocomplete="off"></label>
+      <label>价格<input id="ed-price" type="text" placeholder="例如 ¥10220" autocomplete="off"></label>
+      <label>尺寸<input id="ed-size" type="text" placeholder="例如 34.25cm" autocomplete="off"></label>
+      <label>成色 / 状态<input id="ed-condition" type="text" placeholder="例如 完 / 95新" autocomplete="off"></label>
+      <label>分类<select id="ed-category"></select></label>
+      <label class="wide">新建分类（可选）<input id="ed-newcat" type="text" placeholder="输入新分类名，例如 中古包" autocomplete="off"></label>
+      <label class="wide">商品描述<textarea id="ed-description" rows="3" placeholder="材质、细节、搭配说明…"></textarea></label>
+      <label class="wide">备注<input id="ed-note" type="text" placeholder="例如 配盒、附防尘袋" autocomplete="off"></label>
+    </div>
+    <div class="edit-actions">
+      <button id="ed-save" class="edit-save" type="submit">保存并发布</button>
+      <button id="ed-addpic" class="edit-ghost" type="button">＋ 给这个商品加图</button>
+      <button id="ed-cancel" class="edit-ghost" type="button">取消</button>
+      <span id="ed-status" class="edit-status" aria-live="polite"></span>
+    </div>
+  </form>
+</div>
+
+<div id="confirm-panel" class="confirm-panel" hidden>
+  <div class="confirm-card" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-text">
+    <h2 id="confirm-title">确认删除</h2>
+    <p id="confirm-text" class="confirm-text"></p>
+    <p class="confirm-note">图片不会永久消失：会先移到本机 <code>photos/.trash</code> 回收站，误删了可以找回；对应的商品文字资料也会一并清理。删除后相册自动更新，不用手动刷新。</p>
+    <div class="confirm-actions">
+      <button id="confirm-cancel" class="edit-ghost" type="button">取消</button>
+      <button id="confirm-ok" class="confirm-danger" type="button">确认删除</button>
+    </div>
+    <span id="confirm-status" class="edit-status" aria-live="polite"></span>
+  </div>
+</div>
+
+<div id="frame-detail" class="frame-detail" role="dialog" aria-modal="true" aria-label="商品框内所有图片" hidden>
+  <div class="fd-shell">
+    <div class="fd-topbar">
+      <button id="fd-back" class="fd-back" type="button">← 返回相册</button>
+      <span id="fd-counter" class="fd-counter"></span>
+      <button id="fd-close" class="fd-close" type="button" aria-label="关闭">×</button>
+    </div>
+    <div class="fd-body">
+      <section class="fd-head">
+        <img id="fd-cover" class="fd-cover" alt="">
+        <div class="fd-info">
+          <h2 id="fd-title"></h2>
+          <p id="fd-sub" class="fd-sub"></p>
+          <div id="fd-fields" class="fd-fields"></div>
+          <p id="fd-price" class="fd-price" hidden></p>
+          <p id="fd-desc" class="fd-desc" hidden></p>
+        </div>
+      </section>
+      <div class="fd-actions">
+        <span class="fd-hint">框里的图片都在下面 · 点任意一张单独看大图，大图里 <kbd>←</kbd><kbd>→</kbd> 翻看、<kbd>Esc</kbd> 返回 · 加图、编辑资料、删除都在这页 · 每张小图右上角的「×」只删那一张</span>
+        <button id="fd-add-cart" class="fd-btn fd-btn-cart" type="button">＋ 加入选购清单</button>
+        <button id="fd-density" class="fd-btn fd-btn-ghost" type="button" hidden>▦ 放大缩略图</button>
+        <button id="fd-add" class="fd-btn" type="button" hidden>＋ 给这个框加图</button>
+        <button id="fd-edit" class="fd-btn fd-btn-ghost" type="button" hidden>✎ 编辑资料</button>
+        <button id="fd-delete-frame" class="fd-btn fd-btn-danger" type="button" hidden>✕ 删除整个商品框</button>
+      </div>
+      <div id="fd-grid" class="fd-grid"></div>
+    </div>
+  </div>
+</div>
+
+<div id="lightbox" class="lightbox" role="dialog" aria-modal="true" aria-label="素材放大查看" hidden>
+  <button class="lb-close" id="lb-close" type="button" aria-label="关闭">
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M5 5l14 14M19 5L5 19" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+  </button>
+  <button class="lb-nav lb-prev" id="lb-prev" type="button" aria-label="上一张">
+    <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M15 4L7 12l8 8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </button>
+  <figure class="lb-stage">
+    <img id="lb-img" alt="">
+    <video id="lb-video" controls playsinline preload="metadata" hidden></video>
+    <figcaption>
+      <span id="lb-title" class="lb-title"></span>
+      <span id="lb-meta" class="lb-meta"></span>
+      <span id="lb-count" class="lb-count"></span>
+      <button id="lb-add-cart" class="lb-add is-cart" type="button">＋ 加入选购清单</button>
+      <button id="lb-add" class="lb-add" type="button" hidden>＋ 给这个框加图</button>
+      <button id="lb-edit" class="lb-add" type="button" hidden>✎ 编辑资料</button>
+      <button id="lb-delete" class="lb-add is-danger" type="button" hidden>✕ 删除这张图</button>
+    </figcaption>
+    <div id="lb-detail" class="lb-detail" hidden></div>
+  </figure>
+  <button class="lb-nav lb-next" id="lb-next" type="button" aria-label="下一张">
+    <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M9 4l8 8-8 8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </button>
+</div>
+
+<input id="gallery-file" type="file" multiple hidden
+       accept=".jpg,.jpeg,.jfif,.png,.webp,.avif,.gif,.svg,.bmp,.apng,.mp4,.webm,.m4v,.ogv,.heic,.heif,.tif,.tiff,.mov,.avi,.mkv,.wmv">
+<div id="upload-toast" class="upload-toast" role="status" aria-live="polite" hidden></div>
+
+<!-- 客户选购清单：可以提交订单；收款码在 #customer-pay-viewer 只读展示，页面不代收款 -->
+<div id="cart-shade" class="cart-shade" hidden></div>
+<aside id="cart-panel" class="cart-panel" role="dialog" aria-modal="true" aria-label="我的选购清单" hidden>
+  <div class="cart-head">
+    <div>
+      <h2>我的选购清单</h2>
+      <p>清单 <span id="cart-list-id">—</span> · 选好后提交订单给店家</p>
+    </div>
+    <button id="cart-close" class="cart-close" type="button" aria-label="关闭">×</button>
+  </div>
+  <div class="cart-scroll">
+  <div class="cart-notice">选好商品按「<strong>提交订单</strong>」发给店家，店家那边会立刻看到。想付款就点右上「<strong>💰 店家收款码</strong>」扫店家的微信 / 支付宝码；页面只展示二维码，<strong>不代收款、不自动改订单状态</strong>，订单仍是「未付款」，付完请和店家确认到账。合计金额仅供参考。</div>
+  <section class="cart-ship" aria-label="收件信息">
+    <p class="cart-ship-title">📮 收件信息 <span>带 <b>*</b> 的三项必填，没填完提交不了订单</span></p>
+    <div class="cart-ship-grid">
+      <label class="cart-guest-label">微信名 / 昵称（选填）
+        <input id="cart-wechat" type="text" placeholder="例如 小雨中古" autocomplete="off">
+      </label>
+      <label class="cart-guest-label is-required">收件人 <b>*</b>
+        <input id="cart-guest" type="text" placeholder="例如 张小姐" autocomplete="name" required aria-required="true">
+      </label>
+      <label class="cart-guest-label is-required">收件人电话 <b>*</b>
+        <input id="cart-phone" type="tel" inputmode="tel" placeholder="例如 13800000000" autocomplete="tel" required aria-required="true">
+      </label>
+      <label class="cart-guest-label cart-ship-wide is-required">详细地址 <b>*</b>
+        <input id="cart-address" type="text" placeholder="省 / 市 / 区 / 街道门牌号" autocomplete="street-address" required aria-required="true">
+      </label>
+    </div>
+    <p id="cart-ship-error" class="cart-ship-error" role="alert" hidden></p>
+  </section>
+  <div id="cart-items" class="cart-items"></div>
+  <div id="cart-order-done" class="cart-order-done" hidden></div>
+  <p id="cart-sync" class="cart-sync" hidden></p>
+  <p id="cart-hint" class="cart-hint" hidden></p>
+  </div>
+  <div class="cart-foot">
+    <div class="cart-total"><span>共 <strong id="cart-total-qty">0</strong> 件</span><span id="cart-total-amount" class="cart-total-amount">¥0</span></div>
+    <p id="cart-total-note" class="cart-total-note"></p>
+    <div class="cart-buttons">
+      <button id="cart-order" class="cart-order-btn" type="button" disabled>✅ 提交订单给店家</button>
+      <button id="cart-copy" class="cart-ghost" type="button">复制清单</button>
+      <button id="cart-clear" class="cart-ghost" type="button">清空</button>
+    </div>
+  </div>
+</aside>
+
+<!-- 线上聊天：客户与店家就某笔订单打字 / 发图片沟通，接不了微信，只在页面里聊 -->
+<div id="chat-shade" class="chat-shade" hidden></div>
+<aside id="chat-panel" class="chat-panel" role="dialog" aria-modal="true" aria-label="订单聊天" hidden>
+  <div class="chat-head">
+    <div>
+      <h2 id="chat-title">💬 和店家聊天</h2>
+      <p id="chat-sub">订单 —</p>
+    </div>
+    <button id="chat-close" class="cart-close" type="button" aria-label="关闭">×</button>
+  </div>
+  <div id="chat-messages" class="chat-messages" aria-live="polite"></div>
+  <p id="chat-status" class="chat-status" hidden></p>
+  <div class="chat-compose">
+    <input id="chat-image-file" class="chat-image-file" type="file" accept="image/*" hidden>
+    <button id="chat-image-btn" class="chat-image-btn" type="button" title="发图片给对方" aria-label="发图片给对方">🖼<span>图片</span></button>
+    <input id="chat-input" type="text" maxlength="500" placeholder="输入消息，或点「🖼 图片」发图…" autocomplete="off">
+    <button id="chat-send" class="chat-send" type="button">发送</button>
+  </div>
+  <p class="chat-footnote">这里只是页面内留言，可以打字也可以发图片；点「🖼 图片」选一张就能发，点聊天里的图片能看大图。不会跳到微信，也不在这里收款；付款请点右上「💰 店家收款码」。店家回复后会自动出现。</p>
+</aside>
+
+<!-- 聊天图片放大：只读，客户和店家都能点开看 -->
+<div id="chat-image-viewer" class="chat-image-viewer" hidden>
+  <div id="chat-image-shade" class="chat-image-shade"></div>
+  <div class="chat-image-card">
+    <button id="chat-image-close" class="chat-image-close" type="button" aria-label="关闭">×</button>
+    <h3>聊天图片</h3>
+    <img id="chat-image-full" alt="聊天图片大图">
+    <p class="chat-image-hint">点空白处或按 Esc 关闭</p>
+  </div>
+</div>
+
+<!-- 店家专用：通过带口令的链接进入，客户看不到 -->
+<div id="orders-view" class="orders-view" hidden>
+  <div class="orders-shell">
+    <div class="orders-top">
+      <div>
+        <p class="orders-eyebrow">店家专用 · 客户看不到</p>
+        <h1>客户订单与选购清单</h1>
+        <p class="orders-sub">客户可以加入清单并「提交订单」，前台也能看到这里的收款码自行扫码付款；<strong>页面只展示二维码，不代收款、不自动改订单状态</strong>，所有订单仍是「未付款」，请核对到账后自行确认。这里按每位客人显示：下单了哪些商品、各多少件、单价、小计和合计金额；还在挑选中、没下单的清单单独列在下面。<strong>客户在订单里发消息，下面订单卡片会直接出现红色数字和最新一句话</strong>，不用点进聊天就知道；页面会自己每隔一会儿刷新。</p>
+      </div>
+      <div class="orders-tools">
+        <button id="orders-folder-import" class="fd-btn fd-btn-import" type="button" hidden>📦 整个文件夹上架</button>
+        <button id="orders-access" class="fd-btn fd-btn-import" type="button" hidden>🔒 主页访问权限</button>
+        <button id="orders-refresh" class="fd-btn" type="button">↻ 刷新</button>
+        <button id="orders-pay" class="fd-btn" type="button" hidden>🔍 放大收款码</button>
+        <button id="orders-export" class="fd-btn fd-btn-ghost" type="button">↓ 导出表格</button>
+        <span id="orders-autologin" class="orders-autologin" hidden>🔓 本机已保持登录</span>
+        <button id="orders-logout" class="fd-btn fd-btn-ghost" type="button" hidden>🔒 退出登录</button>
+        <a id="orders-back" class="fd-btn fd-btn-ghost" href="./">← 返回相册</a>
+      </div>
+    </div>
+
+    <div id="orders-gate" class="orders-gate" hidden>
+      <h2>🔐 店家登录</h2>
+      <p>手机、电脑都能登录。<strong>在这台设备上登录一次，以后打开就直接进后台，不用再输账号和密码</strong>；换一台手机或电脑，第一次还是要输一次。别人只拿到客户链接依然进不来；账号和密码只给店家自己用，别转发给客户。想换账号、或把电脑借给别人用，点右上「🔒 退出登录」就会取消这台设备的自动登录。</p>
+      <div class="orders-login-form">
+        <label>店家账号
+          <input id="orders-account" type="text" placeholder="账号" autocomplete="username">
+        </label>
+        <label>店家密码
+          <input id="orders-password" type="password" placeholder="密码" autocomplete="current-password">
+        </label>
+        <button id="orders-login" class="fd-btn" type="button">登录后台</button>
+      </div>
+      <p id="orders-gate-msg" class="orders-gate-msg"></p>
+    </div>
+
+    <div id="orders-body" hidden>
+      <!-- 店家后台增强：分类 / VIP / 一键改价。整个区块随 orders-body 一起，只在店家登录后可见 -->
+      <section id="shop-admin" class="sa-shell" aria-label="商品管理">
+        <div class="sa-head">
+          <div>
+            <h2>🗂 商品管理</h2>
+            <p id="sa-status" class="sa-status">正在读取商品数据…</p>
+          </div>
+          <button id="sa-toggle" class="sa-toggle" type="button" aria-expanded="true" aria-controls="sa-body">收起 ▴</button>
+        </div>
+
+        <div id="sa-body" class="sa-body sa-body-wide">
+          <div class="sa-layout">
+            <aside class="sa-nav" aria-label="后台导航">
+              <div class="sa-nav-brand">简白图库 <span>店家后台</span></div>
+              <button class="sa-nav-item is-active" type="button" data-sa-view="home">🏠 首页</button>
+              <button class="sa-nav-item" type="button" data-sa-view="albums">📁 相册</button>
+              <button class="sa-nav-item" type="button" data-sa-view="tools">🧰 工具箱 <span class="sa-new">NEW</span></button>
+              <div id="sa-nav-tools" class="sa-nav-sub" hidden>
+                <button type="button" data-sa-go="price">💴 一键改价</button>
+                <button type="button" data-sa-go="folder">📦 整个文件夹上架</button>
+                <button type="button" data-sa-go="pay">💰 收款码</button>
+                <button type="button" data-sa-go="access">🔒 主页访问权限</button>
+              </div>
+              <button class="sa-nav-item" type="button" data-sa-view="cats" id="sa-nav-cat-toggle" aria-expanded="false">🏷 分类 <span id="sa-nav-cat-manage" class="sa-manage">管理 ▾</span></button>
+              <div id="sa-nav-cat-box" class="sa-nav-cat-box" hidden>
+                <div class="sa-nav-search">
+                  <input id="sa-nav-cat-search" class="sa-input" type="search" placeholder="搜索" autocomplete="off">
+                  <button id="sa-nav-cat-create" class="sa-btn sa-btn-primary" type="button">创建分类</button>
+                </div>
+                <div id="sa-nav-cat-list" class="sa-nav-cat-list"></div>
+              </div>
+              <button class="sa-nav-item" type="button" data-sa-view="trash">🗑 回收站 <span id="sa-trash-count" class="sa-nav-badge" hidden>0</span></button>
+              <p class="sa-nav-foot">商品管理 · 订单收款 · 客户只读</p>
+            </aside>
+            <div class="sa-main">
+              <section class="sa-panel" data-sa-panel="home">
+                <div class="sa-card">
+                  <h3>相册详情</h3>
+                  <p class="sa-detail-line">共有 <strong id="sa-stat-albums">—</strong> 个相册　共有 <strong id="sa-stat-photos">—</strong> 张图片</p>
+                  <div class="sa-row">
+                    <button id="sa-go-upload" class="sa-btn sa-btn-primary" type="button">去上传</button>
+                    <button id="sa-go-share" class="sa-btn" type="button">去分享</button>
+                  </div>
+                </div>
+                <div class="sa-card sa-usage-card">
+                  <h3>空间使用情况</h3>
+                  <p class="sa-big-num"><span id="sa-space-used">—</span><small> 本机图片占用</small></p>
+                  <p class="sa-note">按本机相册图片实际大小统计，不限制容量，不需要购买额外空间。</p>
+                  <h3>客户访问</h3>
+                  <p id="sa-access-mode" class="sa-big-word">公开只读</p>
+                  <p class="sa-note">链接发给客户即可浏览，不计量、不额外收费；访问门可在「工具箱」里改。</p>
+                </div>
+              </section>
+              <section class="sa-panel" data-sa-panel="albums" hidden>
+                <div class="sa-card">
+                  <div class="sa-card-head"><h3>📁 我的相册</h3><span id="sa-album-summary" class="sa-hint">—</span></div>
+                  <div class="sa-row">
+                    <button id="sa-album-create" class="sa-btn sa-btn-primary" type="button">＋ 新建相册</button>
+                    <button id="sa-album-open" class="sa-btn" type="button">打开客户相册 ↗</button>
+                    <button id="sa-album-upload" class="sa-btn" type="button">打开上传台 ↗</button>
+                  </div>
+                  <div class="sa-album-toolbar">
+                    <label class="sa-check-all"><input id="sa-album-check-all" type="checkbox"> 全选</label>
+                    <span id="sa-album-selected" class="sa-hint">已选 0 个</span>
+                    <button id="sa-album-edit" class="sa-btn" type="button" disabled>✎ 编辑资料</button>
+                    <button id="sa-album-delete" class="sa-btn sa-btn-danger" type="button" disabled>🗑 删除选中</button>
+                    <span id="sa-album-note" class="sa-album-note">点图片选中 · Ctrl/⌘ 多选 · Shift 连选 · 右键更多操作</span>
+                  </div>
+                  <div class="sa-album-search">
+                    <input id="sa-album-search" type="search" placeholder="搜商品名称或编号" autocomplete="off">
+                  </div>
+                  <div id="sa-album-grid" class="sa-album-grid"></div>
+                  <div class="sa-album-pager">
+                    <button id="sa-album-prev" class="sa-btn" type="button">← 上一页</button>
+                    <span id="sa-album-page" class="sa-hint">—</span>
+                    <button id="sa-album-next" class="sa-btn" type="button">下一页 →</button>
+                  </div>
+                </div>
+              </section>
+
+              <!-- 手动新建相册 / 编辑相册资料：新建时可以一次选多张图，也可以先建空相册，之后再加图 -->
+              <div id="sa-album-modal" class="sa-am" hidden>
+                <form id="sa-am-form" class="sa-am-card" role="dialog" aria-modal="true" aria-label="相册资料">
+                  <button id="sa-am-close" class="sa-am-close" type="button" aria-label="关闭">×</button>
+                  <h2 id="sa-am-title">新建相册</h2>
+                  <p id="sa-am-lede" class="sa-am-lede">填多少都行，留空不显示；创建后会自动同步到线上相册。</p>
+                  <div class="sa-am-grid">
+                    <label>商品名称<input id="sa-am-name" type="text" placeholder="例如 普拉达 hobo 中古腋下包" autocomplete="off"></label>
+                    <label>商品编号<input id="sa-am-code" type="text" placeholder="例如 00208" autocomplete="off"></label>
+                    <label>价格<input id="sa-am-price" type="text" placeholder="例如 320" autocomplete="off"></label>
+                    <label>尺寸<input id="sa-am-size" type="text" placeholder="例如 34.25cm" autocomplete="off"></label>
+                    <label>成色 / 状态<input id="sa-am-condition" type="text" placeholder="例如 95新" autocomplete="off"></label>
+                    <label>分类<select id="sa-am-category"></select></label>
+                    <label class="sa-am-wide">新建分类（可选）<input id="sa-am-newcat" type="text" placeholder="输入新分类名，例如 中古包" autocomplete="off"></label>
+                    <label class="sa-am-wide">商品描述<textarea id="sa-am-description" rows="3" placeholder="材质、细节、搭配说明…"></textarea></label>
+                    <label class="sa-am-wide">备注<input id="sa-am-note" type="text" placeholder="例如 配盒、附防尘袋" autocomplete="off"></label>
+                  </div>
+                  <div class="sa-am-photos">
+                    <label id="sa-am-file-label" class="sa-am-file">📷 选择图片（可多选，也可以先不传）
+                      <input id="sa-am-files" type="file" accept="image/*" multiple hidden>
+                    </label>
+                    <span id="sa-am-files-info" class="sa-hint">未选择图片</span>
+                    <div id="sa-am-preview" class="sa-am-preview"></div>
+                  </div>
+                  <div class="sa-am-actions">
+                    <button id="sa-am-save" class="sa-btn sa-btn-primary" type="submit">保存并发布</button>
+                    <button id="sa-am-cancel" class="sa-btn" type="button">取消</button>
+                    <span id="sa-am-status" class="sa-hint" aria-live="polite"></span>
+                  </div>
+                </form>
+              </div>
+              <div id="sa-album-menu" class="sa-am-menu" hidden></div>
+              <section class="sa-panel" data-sa-panel="trash" hidden>
+                <div class="sa-card">
+                  <div class="sa-trash-toolbar">
+                    <div class="sa-row">
+                      <button id="sa-trash-restore" class="sa-btn sa-btn-primary" type="button" disabled>♻ 恢复</button>
+                      <button id="sa-trash-purge" class="sa-btn" type="button" disabled>🗑 永久删除</button>
+                      <span id="sa-trash-status" class="sa-status"></span>
+                    </div>
+                    <button id="sa-trash-empty" class="sa-btn sa-btn-ghost" type="button">🗑 清空回收站</button>
+                  </div>
+                  <div id="sa-trash-list" class="sa-trash-list" hidden></div>
+                  <div id="sa-trash-empty-state" class="sa-trash-empty" hidden>
+                    <svg viewBox="0 0 200 150" width="170" height="128" aria-hidden="true">
+                      <ellipse cx="100" cy="132" rx="62" ry="8" fill="#eceae5"></ellipse>
+                      <rect x="46" y="34" width="92" height="76" rx="5" fill="#e3e1dc" transform="rotate(-9 92 72)"></rect>
+                      <rect x="66" y="46" width="88" height="72" rx="5" fill="#f2f0ec" stroke="#d8d5ce" stroke-width="2"></rect>
+                      <circle cx="88" cy="68" r="7" fill="#d8d5ce"></circle>
+                      <path d="M72 108 L100 80 L120 98 L134 88 L148 108 Z" fill="#d8d5ce"></path>
+                      <text x="26" y="52" font-size="14" fill="#d8d5ce">+</text>
+                      <text x="170" y="74" font-size="14" fill="#d8d5ce">+</text>
+                      <text x="36" y="104" font-size="10" fill="#d8d5ce">+</text>
+                    </svg>
+                    <p>回收站里没有内容</p>
+                  </div>
+                </div>
+              </section>
+              <div class="sa-grid">
+            <section class="sa-card sa-cats" data-sa-panel="cats" hidden>
+              <div class="sa-card-head">
+                <h3>📁 分类</h3>
+                <button id="sa-cat-fold" class="sa-mini" type="button">收起列表</button>
+              </div>
+              <div id="sa-cat-inner">
+                <div class="sa-row">
+                  <input id="sa-cat-search" class="sa-input" type="search" placeholder="搜索分类" autocomplete="off">
+                  <button id="sa-cat-new" class="sa-btn sa-btn-primary" type="button">＋ 创建分类</button>
+                </div>
+                <form id="sa-cat-form" class="sa-row sa-cat-form" hidden>
+                  <input id="sa-cat-name" class="sa-input" type="text" maxlength="24" placeholder="新分类名，例如 中古包" autocomplete="off">
+                  <button class="sa-btn sa-btn-primary" type="submit">保存</button>
+                  <button id="sa-cat-cancel" class="sa-btn" type="button">取消</button>
+                </form>
+                <div id="sa-cat-list" class="sa-cat-list"></div>
+                <div class="sa-selected">
+                  <span id="sa-selected-count">已勾选 0 个商品</span>
+                  <select id="sa-assign-cat" class="sa-select" aria-label="移动到哪个分类"></select>
+                  <button id="sa-assign" class="sa-btn" type="button">移到该分类</button>
+                  <button id="sa-clear-sel" class="sa-btn sa-btn-ghost" type="button">清空</button>
+                </div>
+              </div>
+            </section>
+
+            <div class="sa-right">
+              <section class="sa-card sa-vip-card" data-sa-panel="home">
+                <div class="sa-card-head"><h3>👑 全能 VIP</h3><span class="sa-vip-price">¥300 / 季度</span></div>
+                <p class="sa-vip-line">使用时间至 <strong id="sa-vip-until">—</strong></p>
+                <p id="sa-vip-state" class="sa-vip-state">—</p>
+                <div class="sa-row">
+                  <button id="sa-vip-renew" class="sa-btn sa-btn-primary" type="button">续费一个季度</button>
+                  <button id="sa-vip-log" class="sa-btn" type="button">消费详情</button>
+                </div>
+                <div id="sa-vip-records" class="sa-records" hidden></div>
+                <p class="sa-note">店内权益记录，不代收款、不产生扣款；客户始终只读，不会因此获得后台权限。</p>
+                <p class="sa-note">权益：分类管理 · 一键改价 · 文件夹上架 · 访问权限 · 订单与收款码。</p>
+              </section>
+
+              <section class="sa-card sa-price-card" data-sa-panel="tools" hidden>
+                <div class="sa-card-head"><h3>💴 一键改价</h3><span class="sa-hint">先预览，再确认</span></div>
+                <div class="sa-row sa-wrap">
+                  <label class="sa-field">范围
+                    <select id="sa-scope" class="sa-select">
+                      <option value="all">全部商品</option>
+                      <option value="category">某个分类</option>
+                      <option value="selected">已勾选的商品</option>
+                      <option value="keyword">按编号 / 名称关键词</option>
+                    </select>
+                  </label>
+                  <label class="sa-field" id="sa-scope-cat-wrap" hidden>分类
+                    <select id="sa-scope-cat" class="sa-select"></select>
+                  </label>
+                  <label class="sa-field" id="sa-scope-kw-wrap" hidden>关键词
+                    <input id="sa-scope-kw" class="sa-input" type="text" placeholder="例如 P10195" autocomplete="off">
+                  </label>
+                </div>
+                <div class="sa-row sa-wrap">
+                  <label class="sa-field">方式
+                    <select id="sa-mode" class="sa-select">
+                      <option value="set">统一设为</option>
+                      <option value="add">每件加</option>
+                      <option value="sub">每件减</option>
+                      <option value="percent">按百分比调整</option>
+                    </select>
+                  </label>
+                  <label class="sa-field">数值
+                    <input id="sa-amount" class="sa-input" type="text" inputmode="decimal" placeholder="例如 320 或 10" autocomplete="off">
+                  </label>
+                  <button id="sa-preview" class="sa-btn" type="button">预览改动</button>
+                </div>
+                <div id="sa-preview-box" class="sa-preview" hidden></div>
+                <div class="sa-row">
+                  <button id="sa-apply" class="sa-btn sa-btn-primary" type="button" disabled>确认改价并发布</button>
+                  <span id="sa-price-status" class="sa-status"></span>
+                </div>
+              </section>
+            </div>
+          </div>
+          </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 店家收款码：微信 + 支付宝两张并排，第一屏就能看、能换、能放大 -->
+      <section id="pay-card" class="pay-card" aria-label="店家收款码">
+        <div class="pay-card-main">
+          <div class="pay-card-txt">
+            <h2>💰 我的收款码</h2>
+            <p>下面两张码，点「🔍 放大给客户扫」就行。想换哪张，点那张的「⬆ 上传 / 更换」重新选一张图片；手机、电脑都能换，换完所有设备立刻看到，不用再发布一次。</p>
+            <p class="pay-card-mini">⚠ 这里只把二维码给客户扫，不代收款、不改订单状态；订单仍是「未付款」，请自行确认到账。客户前台现在也能看到这两张码（只读，只能看和放大，不能上传 / 更换），在这里换码后客户那边立刻更新。</p>
+            <p id="pay-card-status" class="pay-status" hidden></p>
+          </div>
+        </div>
+        <div id="pay-card-list" class="pay-card-list"></div>
+        <input id="pay-card-file" type="file" accept="image/*" hidden>
+      </section>
+      <div class="orders-stats">
+        <div><em>客户清单</em><strong id="orders-list-count">—</strong><span>份</span></div>
+        <div><em>总件数</em><strong id="orders-qty">—</strong><span>件</span></div>
+        <div><em>总金额</em><strong id="orders-amount">—</strong></div>
+        <div><em>未标价商品</em><strong id="orders-noprice">—</strong><span>种</span></div>
+      </div>
+      <div id="orders-unread-bar" class="orders-unread-bar" hidden>
+        <span id="orders-unread-text" class="orders-unread-text">🔔 有客户新消息</span>
+        <button id="orders-unread-jump" class="fd-btn fd-btn-ghost" type="button">→ 去看第一条</button>
+      </div>
+      <div class="orders-section-title"><h2>📦 客户已提交的订单</h2><p id="orders-placed-count">暂时还没有客户提交订单</p></div>
+      <div id="orders-placed" class="orders-placed"></div>
+      <div id="orders-cancelled" class="orders-cancelled" hidden></div>
+      <div class="orders-section-title"><h2>🛒 还在挑选中（未下单）</h2><p>客户加入清单但还没按「提交订单」，下面按每位客人分开显示。</p></div>
+      <div id="orders-lists" class="orders-lists"></div>
+    </div>
+    <p id="orders-status" class="orders-status" aria-live="polite"></p>
+  </div>
+</div>
+
+<!-- 店家后台：点订单 / 清单里的商品，查看大图与商品资料（只读） -->
+<div id="item-viewer" class="item-viewer" hidden>
+  <div class="iv-shade" data-iv-close></div>
+  <div class="iv-card" role="dialog" aria-modal="true" aria-label="查看订单商品">
+    <button id="iv-close" class="iv-close" type="button" aria-label="关闭">×</button>
+    <div class="iv-media">
+      <img id="iv-photo" src="" alt="">
+      <video id="iv-video" controls playsinline preload="metadata" hidden></video>
+      <div id="iv-thumbs" class="iv-thumbs" hidden></div>
+    </div>
+    <div class="iv-info">
+      <p id="iv-order" class="iv-order"></p>
+      <h2 id="iv-title">商品详情</h2>
+      <div id="iv-fields" class="iv-fields"></div>
+      <div id="iv-desc" class="iv-desc"></div>
+      <p id="iv-note" class="iv-note">这里只能查看商品，不能改价、不能收款；订单状态仍是「未付款」。</p>
+    </div>
+  </div>
+</div>
+
+<!-- 店家专用：收款码放大 / 更换。客户前台另有只读的收款码浮层，只能看不能改 -->
+<div id="pay-viewer" class="pay-viewer" hidden>
+  <div class="pv-shade" data-pv-close></div>
+  <div class="pv-card" role="dialog" aria-modal="true" aria-label="店家收款码">
+    <button id="pv-close" class="pv-close" type="button" aria-label="关闭">×</button>
+    <h2 id="pv-title">店家收款码</h2>
+    <p class="pv-sub">客户前台也能看到这两张码自行扫码；店家在这里放大或换码，换完全设备（含客户前台）立刻更新。页面只展示二维码，不代收款、不改订单状态。</p>
+    <div class="pv-media">
+      <img id="pv-qr" alt="店家收款码">
+      <p id="pv-empty" class="pv-empty" hidden>这张收款码还没上传。</p>
+    </div>
+    <div id="pv-actions" class="pv-actions" hidden>
+      <button id="pv-upload" class="pv-upload" type="button">⬆ 上传 / 更换这张收款码</button>
+      <input id="pv-file" type="file" accept="image/*" hidden>
+    </div>
+    <p id="pv-status" class="pv-status" hidden></p>
+    <p class="pv-note">⚠ 这里只展示二维码，不代收款、不改订单状态；订单仍是「未付款」，请自行确认到账。</p>
+  </div>
+</div>
+
+<!-- 前台客户：店家收款码（只读）。客户能看、能放大扫码；不能上传、不能更换、不能改订单状态 -->
+<div id="customer-pay-viewer" class="cpay-viewer" hidden>
+  <div class="cpay-shade" data-cpay-close></div>
+  <div class="cpay-card" role="dialog" aria-modal="true" aria-label="店家收款码">
+    <button id="cpay-close" class="cpay-close" type="button" aria-label="关闭">×</button>
+    <h2>💰 店家收款码 · 扫码付款</h2>
+    <p class="cpay-sub">选好商品提交订单后，用微信或支付宝扫下面的码付款给店家。点「🔍 放大」把二维码放得更大更好扫。<strong>付款是在你自己的微信 / 支付宝里完成的</strong>，这个页面只展示二维码，不代收款、不会自动扣款，也不会自动把订单改成「已付款」。</p>
+    <div id="cpay-list" class="cpay-list"></div>
+    <p id="cpay-status" class="cpay-status" hidden></p>
+    <p class="cpay-note">⚠ 付完请把付款截图发给店家确认，或点订单里的「💬 联系店家」说一声；订单在这页仍显示「未付款」，由店家核对到账后再确认。</p>
+  </div>
+</div>
+
+<!-- 单张二维码放大：方便拿手机扫；客户只读，没有任何写入按钮 -->
+<div id="customer-pay-zoom" class="cpay-zoom" hidden>
+  <div class="cpay-zoom-shade" data-cpay-zoom-close></div>
+  <div class="cpay-zoom-card" role="dialog" aria-modal="true" aria-label="放大收款码">
+    <button id="cpay-zoom-close" class="cpay-zoom-close" type="button" aria-label="关闭">×</button>
+    <h3 id="cpay-zoom-title">收款码</h3>
+    <img id="cpay-zoom-img" alt="店家收款码">
+    <p class="cpay-zoom-hint">用手机扫这张码付款 · 点空白处或按 Esc 关闭</p>
+  </div>
+</div>
+
+<!-- 店家后台里的「整个文件夹自动上架」：只在后台页出现，客户页面看不到 -->
+<div id="folder-import-modal" class="fi-modal" hidden>
+  <div class="fi-shade" data-fi-close></div>
+  <div class="fi-card" role="dialog" aria-modal="true" aria-label="整个文件夹自动上架">
+    <button id="fi-close" class="fi-close" type="button" aria-label="关闭">×</button>
+    <h2>📦 整个文件夹自动上架</h2>
+    <p class="fi-lede">一个总文件夹里，<strong>每个子文件夹 = 一件商品</strong>：里面所有图片自动变成这个商品框里的多张图，同名的 txt 细节（尺寸、产品介绍）自动填进商品资料，图片自动压小。原文件夹一个字节都不会改。</p>
+    <p id="fi-console-hint" class="fi-hint">正在检查店家电脑的上传台…</p>
+    <p class="fi-label">电脑里找到的文件夹（点一下选中，可多选，同编号会自动合并；用过的会标出来，右侧「删除」随时从列表移除）：</p>
+    <div id="fi-candidates" class="fi-candidates">正在找…</div>
+    <div class="fi-row">
+      <button id="fi-pick" class="fd-btn fd-btn-ghost" type="button">📁 选其它文件夹</button>
+      <input id="fi-input" type="file" webkitdirectory directory multiple hidden>
+      <span id="fi-picked" class="fi-picked">还没选文件夹</span>
+    </div>
+    <div id="fi-chips" class="fi-chips"></div>
+    <details class="fi-details">
+      <summary>文件夹特别大？直接粘贴完整路径更快（不用把图传一遍）</summary>
+      <div class="fi-row" style="margin-top:10px;margin-bottom:0">
+        <input id="fi-path" type="text" placeholder="例如 C:\Users\...\Desktop\图片\b">
+        <button id="fi-path-add" class="fd-btn fd-btn-ghost" type="button">用这个路径</button>
+      </div>
+    </details>
+    <div class="fi-row fi-go-row">
+      <label for="fi-label">这批归到</label>
+      <input id="fi-label" type="text" value="组合套装" maxlength="20">
+      <button id="fi-go" class="fd-btn" type="button">开始自动上架</button>
+    </div>
+    <div class="fi-progress" id="fi-progress" hidden><i id="fi-progress-bar"></i></div>
+    <div class="fi-result" id="fi-result" hidden></div>
+  </div>
+</div>
+
+<!-- 前台右上角「店家登录」：前台和后台共用一个链接，登录后才切到后台视图 -->
+<div id="front-login-modal" class="fl-modal" hidden>
+  <div class="fl-shade" data-fl-close></div>
+  <div class="fl-card" role="dialog" aria-modal="true" aria-label="店家登录">
+    <button id="fl-close" class="fl-close" type="button" aria-label="关闭">×</button>
+    <h2>🔐 店家登录</h2>
+    <p class="fl-lede">前台和后台就是<strong>同一个链接</strong>。你是店家，在这里登录后就能看订单、收款码、改资料和批量上架；客户不用登录，直接浏览和加购就行。</p>
+    <label class="fl-field">店家账号
+      <input id="fl-account" type="text" autocomplete="username" placeholder="账号">
+    </label>
+    <label class="fl-field">店家密码
+      <input id="fl-password" type="password" autocomplete="current-password" placeholder="密码">
+    </label>
+    <p id="fl-msg" class="fl-msg" role="status" hidden></p>
+    <div class="fl-actions">
+      <button id="fl-login" class="fd-btn" type="button">登录后台</button>
+      <button id="fl-cancel" class="fd-btn fd-btn-ghost" type="button">取消</button>
+    </div>
+    <p class="fl-note">在这台设备登录一次就会记住，下次点「🔓 进入后台」直接进，不用再输账号密码。账号密码只给店家自己用，别转发给客户。</p>
+  </div>
+</div>
+
+<!-- 客户进门：公开 / 加密 / 关闭，由云端设置决定。默认先显示「正在检查」，
+     access.js 加载失败时 script 的 onerror 会自动放行，绝不把客户卡住。 -->
+<div id="access-gate" class="access-gate">
+  <div class="ag-card" role="dialog" aria-modal="true" aria-label="相册访问权限">
+    <div id="ag-loading" class="ag-state">
+      <div class="ag-spin" aria-hidden="true"></div>
+      <h2>正在检查访问权限…</h2>
+      <p>稍等一下就好</p>
+    </div>
+    <div id="ag-closed" class="ag-state" hidden>
+      <div class="ag-icon" aria-hidden="true">🔒</div>
+      <h2>相册暂时关闭</h2>
+      <p>店家暂时关掉了主页，请稍后再来，或者直接联系店家。</p>
+      <button id="ag-retry" class="fd-btn fd-btn-ghost" type="button">↻ 再试一次</button>
+      <a href="#" class="ag-shop-link" data-fl-orders>🔐 我是店家 · 登录后台</a>
+    </div>
+    <div id="ag-password" class="ag-state" hidden>
+      <div class="ag-icon" aria-hidden="true">🔐</div>
+      <h2>这个相册需要访问密码</h2>
+      <p>请向店家要访问密码，输一次这台设备就记住了。</p>
+      <input id="ag-code" type="password" maxlength="32" autocomplete="off" placeholder="输入访问密码">
+      <button id="ag-go" class="fd-btn" type="button">进入相册</button>
+      <p id="ag-msg" class="ag-msg" role="status"></p>
+      <a href="#" class="ag-shop-link" data-fl-orders>🔐 我是店家 · 登录后台</a>
+    </div>
+  </div>
+</div>
+
+<!-- 店家后台：设置主页访问权限，只有登录后才出现 -->
+<div id="access-modal" class="ac-modal" hidden>
+  <div class="ac-shade" data-ac-close></div>
+  <div class="ac-card" role="dialog" aria-modal="true" aria-label="设置主页访问权限">
+    <button id="ac-close" class="ac-close" type="button" aria-label="关闭">×</button>
+    <h2>设置主页访问权限</h2>
+    <p class="ac-lede">这里控制<strong>发给客户的相册链接</strong>能不能打开，不影响你自己的后台。改完不用重新发布。</p>
+    <div class="ac-opts">
+      <label class="ac-opt"><input type="radio" name="ac-mode" value="public" checked>
+        <span><b>公开</b><small>拿到链接的人直接就能看（现在默认）</small></span></label>
+      <label class="ac-opt"><input type="radio" name="ac-mode" value="password">
+        <span><b>加密</b><small>要先输访问密码才能进相册</small></span></label>
+      <label class="ac-opt"><input type="radio" name="ac-mode" value="closed">
+        <span><b>关闭</b><small>谁都打不开，客户只看到「相册暂时关闭」</small></span></label>
+    </div>
+    <div id="ac-code-row" class="ac-code-row" hidden>
+      <label for="ac-code">访问密码（4～32 位，数字字母都行）</label>
+      <input id="ac-code" type="text" maxlength="32" autocomplete="off" placeholder="留空表示沿用当前密码">
+      <p id="ac-current" class="ac-current"></p>
+    </div>
+    <p id="ac-msg" class="ac-msg" role="status" hidden></p>
+    <div class="ac-actions">
+      <button id="ac-save" class="fd-btn" type="button">确认</button>
+      <button id="ac-cancel" class="fd-btn fd-btn-ghost" type="button">取消</button>
+    </div>
+    <p class="ac-note">改完客户刷新页面就生效；你一改密码，之前输过的客户要重新输一次。<br>⚠ 这是给普通客户看的「进门锁」：图片文件本身仍是公开静态文件，懂技术的人直接拿图片地址还是能打开。要做到服务器级别加密，需要把相册换成带后台的应用。</p>
+  </div>
+</div>
+
+<script src="./assets/workbuddy-cloud-sdk.js?v=20261110-55"></script>
+<script src="./assets/cloud-config.js?v=20261110-55"></script>
+<script src="./assets/access.js?v=20261110-55" onerror="var g=document.getElementById('access-gate');if(g)g.hidden=true;"></script>
+<script src="./assets/chat.js?v=20261110-55"></script>
+<script src="./assets/cart.js?v=20261110-55"></script>
+<script src="./assets/app.js?v=20261110-55"></script>
+<script src="./assets/folder-import.js?v=20261110-55"></script>
+<script src="./assets/front-login.js?v=20261110-55"></script>
+<script src="./assets/shop-admin.js?v=20261110-55"></script>
+<a id="sg-admin-entry" href="?view=orders" title="店家后台：订单 / 分类 / 改价 / 相册 / 回收站" style="position:fixed;right:14px;bottom:calc(74px + env(safe-area-inset-bottom,0px));z-index:900;display:inline-flex;align-items:center;gap:6px;padding:9px 14px;border:1px solid #e8e3da;border-radius:999px;background:rgba(255,255,255,.96);color:#4b4741;font-size:12.5px;font-weight:600;text-decoration:none;box-shadow:0 3px 14px rgba(0,0,0,.14)">⚙ 店家后台</a>
+</body>
+</html>
